@@ -1,0 +1,11 @@
+.vscode
+venv
+.ipynb_checkpoints/
+
+__pycache__
+*.egg-info
+*.tmp
+
+grconvnet/data/datasets
+grconvnet/results/*
+# grconvnet/checkpoints/*
