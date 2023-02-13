@@ -178,9 +178,7 @@ class Img2WorldConverter:  # TODO use genreal base class
 
     def _get_width_world(self, grasp_decropped: ImageGrasp, center_depth: float):
         antipodal_points_img = get_antipodal_points(
-            grasp_decropped.center,
-            -grasp_decropped.angle,
-            grasp_decropped.width,
+            grasp_decropped.center, -grasp_decropped.angle, grasp_decropped.width
         )
 
         antipodal_points_world = [
@@ -195,9 +193,7 @@ class Img2WorldConverter:  # TODO use genreal base class
 
     def _get_angle_world(self, grasp_decropped: ImageGrasp, center_depth: float):
         antipodal_points_img = get_antipodal_points(
-            grasp_decropped.center,
-            -grasp_decropped.angle,
-            grasp_decropped.width,
+            grasp_decropped.center, -grasp_decropped.angle, grasp_decropped.width
         )
 
         antipodal_points_world = [
