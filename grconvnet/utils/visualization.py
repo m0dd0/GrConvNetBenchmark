@@ -8,6 +8,7 @@ import numpy as np
 
 from grconvnet.datatypes import ImageGrasp, RealGrasp
 from grconvnet.utils.geometry import get_antipodal_points
+from grconvnet.postprocessing import World2ImgCoordConverter
 
 
 def make_tensor_displayable(
@@ -37,7 +38,7 @@ def image_grasps_ax(
         ax.scatter(x=grasp.center[0], y=grasp.center[1])
 
         antipodal_points = get_antipodal_points(
-            grasp.center[0:2], grasp.angle, grasp.width
+            grasp.center[0:2], -grasp.angle, grasp.width
         )
 
         ax.plot(antipodal_points[:, 0], antipodal_points[:, 1])
@@ -56,16 +57,39 @@ def world_grasps_ax(
     ax,
     backgound,
     grasps: List[RealGrasp],
-    cam_intrisics,
+    cam_intrinsics,
     cam_rot,
     cam_pos,
     annotate: bool = True,
 ):
     ax.imshow(backgound)
 
+    world2img_converter = World2ImgCoordConverter(cam_intrinsics, cam_rot, cam_pos)
+
     for grasp in grasps:
-        pass
-        # TODO
+        center_img = world2img_converter(grasp.center)
+        ax.scatter(x=center_img[0], y=center_img[1])
+
+        antipodal_points_world = get_antipodal_points(
+            grasp.center[0:2], grasp.angle, grasp.width
+        )
+        antipodal_points_world = np.hstack(
+            (antipodal_points_world, np.full((2, 1), grasp.center[2]))
+        )
+
+        antipodal_points_img = np.array(
+            [world2img_converter(p) for p in antipodal_points_world]
+        )
+        ax.plot(antipodal_points_img[:, 0], antipodal_points_img[:, 1])
+
+        if annotate:
+            ax.annotate(
+                f"c: {tuple(grasp.center.round(3))}\n"
+                + f"q: {round(grasp.quality, 3)}\n"
+                + f"a: {round(np.rad2deg(grasp.angle), 3)}\n"
+                + f"w: {round(grasp.width, 3)}",
+                xy=center_img[0:2],
+            )
 
 
 def overview_fig(
@@ -81,7 +105,11 @@ def overview_fig(
     cam_pos=None,
     fig=None,
 ):
-    assert cam_intrinsics and cam_rot and cam_pos if world_grasps else True
+    assert (
+        cam_intrinsics is not None and cam_rot is not None and cam_pos is not None
+        if world_grasps
+        else True
+    )
 
     if fig is None:
         fig = plt.figure()
@@ -120,7 +148,7 @@ def overview_fig(
         ax = fig.add_subplot(3, 3, 8)
         world_grasps_ax(
             ax,
-            preprocessed_rgb,
+            original_rgb,
             world_grasps,
             cam_intrinsics,
             cam_rot,
