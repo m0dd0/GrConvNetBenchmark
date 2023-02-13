@@ -8,4 +8,5 @@ __pycache__
 
 grconvnet/data/datasets
 grconvnet/results/*
+notebooks/00_experiments.ipynb
 # grconvnet/checkpoints/*
