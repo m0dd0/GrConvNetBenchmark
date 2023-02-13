@@ -75,7 +75,7 @@ class GraspHeightAdjuster:
         grasp_height = max(self.min_height, grasp.center[2] - self.target_grasp_depth)
         adjusted_grasp.center[2] = grasp_height
 
-        return grasp
+        return adjusted_grasp
 
 
 class LegacyGraspHeightAdjuster:
@@ -151,7 +151,7 @@ class World2ImgCoordConverter:
 
         p_world = p_world.reshape((3, 1))  # (3,1)
         p_cam = p_world @ self.cam_rot + self.cam_pos
-        p_img_h = self.cam_intrinsics @ p_cam 
+        p_img_h = self.cam_intrinsics @ p_cam
         p_img = (p_img_h / p_img_h[2])[:2].flatten()  # (2,)
 
         return p_img
@@ -197,7 +197,7 @@ class Img2WorldCoordConverter:
         p_cam_x = (p_img_x - cx) * p_cam_z / fx
         p_cam_y = (p_img_y - cy) * p_cam_z / fy
         p_cam = np.array([p_cam_x, p_cam_y, p_cam_z]).reshape((3, 1))
-        
+
         p_world = self.cam_rot_inv @ p_cam + self.cam_pos
 
         p_world = p_world.flatten()
