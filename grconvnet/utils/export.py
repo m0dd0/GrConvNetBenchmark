@@ -103,8 +103,9 @@ class Exporter:
 
         return value
 
-    def __call__(self, data: Union["Dataclass", Dict[str, Any]]) -> Path:
-        name = data.pop("_export_name", None)
+    def __call__(
+        self, data: Union["Dataclass", Dict[str, Any]], name: str = None
+    ) -> Path:
         if name is None:
             self.i += 1
             name = f"result_{self.i}"

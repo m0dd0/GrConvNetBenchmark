@@ -134,7 +134,7 @@ class YCBSimulationData(Dataset):
 
     def __getitem__(self, index: int):
         all_sample_names = [
-            p.parts[-1] for p in self.root_dir.iterdir() if not p.is_dir()
+            p.parts[-1] for p in self.root_dir.iterdir() if p.suffix == ".npz"
         ]
 
         all_sample_names = sorted(all_sample_names)
