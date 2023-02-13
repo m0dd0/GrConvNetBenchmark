@@ -153,7 +153,7 @@ class YCBSimulationData(Dataset):
             cam_intrinsics=simulation_data["cam_intrinsics"],
             cam_pos=simulation_data["cam_pos"],
             cam_rot=Rotation.from_quat(
-                simulation_data["cam_quat"][[3, 0, 1, 2]]
+                simulation_data["cam_quat"][[1, 2, 3, 0]]
             ).as_matrix(),
             name=sample_name.split(".")[0],
         )
