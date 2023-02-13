@@ -150,7 +150,7 @@ class World2ImgCoordConverter:
         #           p_iy]]
 
         p_world = p_world.reshape((3, 1))  # (3,1)
-        p_cam = p_world @ self.cam_rot + self.cam_pos
+        p_cam = self.cam_rot @ (p_world - self.cam_pos)
         p_img_h = self.cam_intrinsics @ p_cam
         p_img = (p_img_h / p_img_h[2])[:2].flatten()  # (2,)
 
