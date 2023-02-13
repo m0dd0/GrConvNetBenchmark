@@ -160,7 +160,7 @@ class Img2WorldConverter:  # TODO use genreal base class
         # first we account for the fact that the image was resized and/or cropped
         center_decropped = self.decropper(grasp.center)
 
-        p1, p2 = get_antipodal_points(grasp.center, grasp.angle, grasp.width)
+        p1, p2 = get_antipodal_points(grasp.center, -grasp.angle, grasp.width)
         width_decropped = np.linalg.norm(self.decropper(p1) - self.decropper(p2))
         grasp_decropped = ImageGrasp(
             center_decropped, grasp.quality, grasp.angle, width_decropped
@@ -179,7 +179,7 @@ class Img2WorldConverter:  # TODO use genreal base class
     def _get_width_world(self, grasp_decropped: ImageGrasp, center_depth: float):
         antipodal_points_img = get_antipodal_points(
             grasp_decropped.center,
-            grasp_decropped.angle,
+            -grasp_decropped.angle,
             grasp_decropped.width,
         )
 
@@ -196,13 +196,14 @@ class Img2WorldConverter:  # TODO use genreal base class
     def _get_angle_world(self, grasp_decropped: ImageGrasp, center_depth: float):
         antipodal_points_img = get_antipodal_points(
             grasp_decropped.center,
-            grasp_decropped.angle,
+            -grasp_decropped.angle,
             grasp_decropped.width,
         )
 
         antipodal_points_world = [
             self.img2world_converter(p, center_depth) for p in antipodal_points_img
         ]
+        self.intermediate_results["antipodal_points_world"] = antipodal_points_world
 
         angle_world = np.arctan2(
             antipodal_points_world[0][1] - antipodal_points_world[1][1],
