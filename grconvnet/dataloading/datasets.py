@@ -53,7 +53,7 @@ class CornellDataset(Dataset):
             ):
                 length += int(len(list(subdir.glob("*"))) / 5)
 
-        return length
+        return length - 1
 
     def get_item_base_path(self, index: int) -> str:
         if index >= 850:

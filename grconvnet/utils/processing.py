@@ -2,13 +2,20 @@
 """
 
 from typing import Dict, Any, Callable
+from pathlib import Path
 
+import matplotlib.pyplot as plt
 import torch
+import yaml
 
+from grconvnet.dataloading.datasets import CornellDataset, YCBSimulationData
 from grconvnet.datatypes import CameraData
 from grconvnet.preprocessing import Preprocessor, PreprocessorBase
 from grconvnet.postprocessing import Postprocessor, PostprocessorBase
 from grconvnet.models import GenerativeResnet
+from grconvnet.utils import visualization as vis
+from grconvnet.utils.export import Exporter
+from grconvnet.utils.config import module_from_config
 
 
 class End2EndProcessor:
@@ -66,25 +73,90 @@ class End2EndProcessor:
         return process_data
 
 
-# class PipelineCompose:
-#     def __init__(self, pipelines: List[Tuple[str, Callable]]):
-#         self.pipelines = pipelines
+def process_dataset(
+    dataset,
+    e2e_processor: End2EndProcessor,
+    exporter: Exporter,
+):
+    for sample in dataset:
+        print(f"Processing sample {sample.name}...")
 
-#         self.intermediate_results: Dict[str, Any] = {}
+        process_data = e2e_processor(sample)
 
-#     def __call__(self, sample: CameraData) -> Dict[str, Any]:
-#         self.intermediate_results = {}
+        fig = vis.overview_fig(
+            fig=plt.figure(figsize=(20, 20)),
+            original_rgb=vis.make_tensor_displayable(
+                process_data["sample"].rgb, True, True
+            ),
+            preprocessed_rgb=vis.make_tensor_displayable(
+                process_data["preprocessor"]["rgb_masked"], True, True
+            ),
+            q_img=vis.make_tensor_displayable(
+                process_data["postprocessor"]["q_img"], False, False
+            ),
+            angle_img=vis.make_tensor_displayable(
+                process_data["postprocessor"]["angle_img"], False, False
+            ),
+            width_img=vis.make_tensor_displayable(
+                process_data["postprocessor"]["width_img"], False, False
+            ),
+            image_grasps=process_data["grasps_img"],
+            world_grasps=process_data["grasps_world"]
+            if sample.cam_intrinsics is not None
+            else None,
+            cam_intrinsics=sample.cam_intrinsics,
+            cam_rot=sample.cam_rot,
+            cam_pos=sample.cam_pos,
+        )
+        plt.close(fig)
 
-#         for result_name, pipeline in self.pipelines:
-#             sample = pipeline(sample)
-#             self.intermediate_results[result_name] = sample
+        export_data = {
+            "rgb_cropped": process_data["preprocessor"]["rgb_cropped"],
+            "depth_cropped": process_data["preprocessor"]["depth_cropped"],
+            "rgb_masked": process_data["preprocessor"]["rgb_masked"],
+            "q_img": process_data["postprocessor"]["q_img"],
+            "angle_img": process_data["postprocessor"]["angle_img"],
+            "width_img": process_data["postprocessor"]["width_img"],
+            "grasps_img": process_data["grasps_img"],
+            "grasps_world": process_data["grasps_world"]
+            if sample.cam_intrinsics is not None
+            else None,
+            "model_input": process_data["model_input"],
+            "overview": fig,
+        }
 
-#             if hasattr(pipeline, "intermediate_results"):
-#                 for res_name, res in pipeline.intermediate_results.items():
-#                     if res_name in self.intermediate_results:
-#                         raise ValueError(
-#                             f"Name {res_name} already in intermediate results"
-#                         )
-#                     self.intermediate_results[res_name] = res
+        _ = exporter(export_data, f"{process_data['sample'].name}")
 
-#         return sample
+
+if __name__ == "__main__":
+    # instantiate dataset
+    dataset_path = Path("/home/moritz/Documents/cornell")
+    dataset = CornellDataset(dataset_path)
+    # dataset_path = Path("/home/moritz/Documents/ycb_sim_data_1")
+    # dataset = YCBSimulationData(dataset_path)
+
+    # load config
+    config_path = (
+        Path(__file__).parent.parent / "configs" / "cornell_inference_standard.yaml"
+    )
+    # config_path = (
+    #     Path(__file__).parent.parent / "configs" / "ycb_inference_standard.yaml"
+    # )
+    with open(config_path) as f:
+        config = yaml.safe_load(f)
+
+    # instantiate exporter
+    # export_path = Path(__file__).parent.parent / "results" / "cornell_standard"
+    export_path = Path(__file__).parent.parent / "results" / "ycb_1"
+    exporter = Exporter(export_dir=export_path)
+    export_path.mkdir(parents=True, exist_ok=True)
+
+    # save config
+    with open(export_path / "inference_config.yaml", "w") as f:
+        yaml.dump(config, f)
+
+    # instantiate e2e processor
+    e2e_processor = module_from_config(config)
+    # TODO add img2world converter and decropper for ycb processing
+
+    process_dataset(dataset, e2e_processor, exporter)
