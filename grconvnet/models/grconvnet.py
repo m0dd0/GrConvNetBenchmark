@@ -1,70 +1,17 @@
 """_summary_"""
 
-from pathlib import Path
-from typing import Dict, Any
-from copy import deepcopy
-import importlib
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchtyping import TensorType
 
-from .custom_modules import GraspModel, ResidualBlock
+from .base import GraspModel
+from .custom_modules import ResidualBlock
 
 # NOTE: dimensions of type annotations assume the parametrization used in the paper
 
 
 class GenerativeResnet(GraspModel):
-    @classmethod
-    def from_jit(cls, jit_path: Path = None, device: str = None) -> "GenerativeResnet":
-        device = device or (
-            torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-        )
-        jit_path = (
-            jit_path
-            or Path(__file__).parent.parent
-            / "checkpoints"
-            / "cornell-randsplit-rgbd-grconvnet3-drop1-ch32"
-            / "epoch_15_iou_97.pt"
-        )
-
-        # we changed the jitted model class so we only take the state_dict
-        # the jitted model expects the default parameters
-        model = cls()
-        model.load_state_dict(torch.jit.load(jit_path).state_dict())
-
-        model.to(device)
-
-        return model
-
-    @classmethod
-    def from_config(cls, config: Dict[str, Any]) -> "GenerativeResnet":
-        config = deepcopy(config)
-
-        # load the model
-        if "jit" in config:
-            jit_path = cls.check_model_path(config["model"].pop("jit"))
-            device = config.pop("device", None)
-
-            if len(config) > 0:
-                raise ValueError(
-                    "If a jit model is used, only jit path and device can be specified. No other model parameters are allowed."
-                )
-
-            cls.from_jit(jit_path, device)
-
-        else:
-            state_dict_path = cls.check_model_path(config.pop("state_dict_path"))
-            device = config.pop("device", None)
-
-            model = model_cls(**config)
-            model.load_state_dict(torch.load(state_dict_path, map_location=device))
-
-            model.to(device)
-
-        return model
-
     def __init__(
         self,
         input_channels: int = 4,

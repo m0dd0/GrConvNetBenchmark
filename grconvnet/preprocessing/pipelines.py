@@ -11,14 +11,12 @@ import numpy as np
 
 from grconvnet._orig.utils.data.camera_data import CameraData as CameraDataLegacy
 from grconvnet.datatypes import CameraData, DatasetPoint
-from grconvnet.base import PipelineBase
 from . import custom_transforms as CT
 
 
-class PreprocessorBase(PipelineBase):
-    @classmethod
-    def from_config(cls, config: Dict[str, Any]) -> "PreprocessorBase":
-        return super().from_config(config, "preprocessing")
+class PreprocessorBase:
+    def __init__(self):
+        self.intermediate_results: Dict[str, Any] = {}
 
     @abstractmethod
     def __call__(self, sample: DatasetPoint) -> TensorType[4, 224, 224]:

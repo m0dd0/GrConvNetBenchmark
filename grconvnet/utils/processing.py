@@ -15,105 +15,32 @@ from grconvnet.postprocessing import Postprocessor, PostprocessorBase
 from grconvnet.models import GenerativeResnet
 
 
-def module_from_config(
-    config: Dict[str, Any]
-):  # -> Union[PreprocessorBase, PostprocessorBase, GraspModel, End2EndProcessor]:
+def module_from_config(config: Dict[str, Any]):
+    config = deepcopy(config)
+
     import_path = config.pop("class").split(".")
     module_cls = getattr(
-        importlib.import_module(".".join(import_path)[:-1]), import_path[-1]
+        importlib.import_module(".".join(import_path[:-1])), import_path[-1]
     )
 
-    module_args = config["args"]
+    constructor_name = config.pop("constructor", None)
+    if constructor_name is not None:
+        module_cls = getattr(module_cls, constructor_name)
 
-    return module_cls(**module_args)
+    module_kwargs = {}
+
+    for arg_name, arg_value in config.items():
+        if isinstance(arg_value, dict) and "class" in arg_value:
+            submodule_config = arg_value
+            submodule = module_from_config(submodule_config)
+            module_kwargs[arg_name] = submodule
+        else:
+            module_kwargs[arg_name] = arg_value
+
+    return module_cls(**module_kwargs)
 
 
 class End2EndProcessor:
-    @staticmethod
-    def check_model_path(model_path: Path) -> Path:
-        model_path = Path(model_path)
-
-        if not model_path.exists():
-            model_path = Path(__file__).parent.parent / "checkpoints" / model_path
-
-        if not model_path.exists():
-            raise FileNotFoundError(f"Model path {model_path} does not exist.")
-
-        return model_path
-
-    @classmethod
-    def from_config(cls, config: Dict[str, Any]) -> "End2EndProcessor":
-        config = deepcopy(config)
-
-        # load the model
-        if "jit" in config["model"]:
-            jit_path = cls.check_model_path(config["model"].pop("jit"))
-            device = config["model"].pop("device", None)
-
-            if len(config["model"]) > 0:
-                raise ValueError(
-                    "If a jit model is used, only jit path and device can be specified. No other model parameters are allowed."
-                )
-
-            model = torch.jit.load(jit_path)
-
-            if device is not None:
-                model = model.to(device)
-
-        else:
-            state_dict_path = cls.check_model_path(
-                config["model"].pop("state_dict_path")
-            )
-            model_cls = getattr(
-                importlib.import_module("grconvnet.models"),
-                config["models"].pop("class"),
-            )
-            device = config["model"].pop("device", None)
-            model_args = config["model"]
-            model = model_cls.from_state_dict_path(
-                state_dict_path, device, **model_args
-            )
-
-        # load the preprocessor
-        preprocessor_cls = getattr(
-            importlib.import_module("grconvnet.preprocessing"),
-            config["preprocessor"].pop("class"),
-        )
-        preprocessor = preprocessor_cls.from_config(config["preprocessor"])
-
-        # load the postprocessor
-        postprocessor_cls = getattr(
-            importlib.import_module("grconvnet.postprocessing"),
-            config["postprocessor"].pop("class"),
-        )
-        postprocessor = postprocessor_cls.from_config(config["postprocessor"])
-
-        # img2world converter
-        if "img2world_converter" in config:
-            img2world_converter_cls = getattr(
-                importlib.import_module("grconvnet.postprocessing"),
-                config["img2world_converter"].pop("class"),
-            )
-            img2world_converter = img2world_converter_cls.from_config(
-                config["img2world_converter"]
-            )
-        else:
-            img2world_converter = None
-
-        return cls(
-            model=model,
-            preprocessor=preprocessor,
-            postprocessor=postprocessor,
-            img2world_converter=img2world_converter,
-        )
-
-    @classmethod
-    def from_config_path(cls, config_path: Path) -> "End2EndProcessor":
-        with open(config_path, "r") as f:
-            config = yaml.safe_load(f)
-
-        return cls.from_config(config)
-
     def __init__(
         self,
         model: GenerativeResnet = None,

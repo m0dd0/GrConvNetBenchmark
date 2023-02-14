@@ -1,7 +1,7 @@
 """_summary_
 """
 
-from typing import List, Any, Dict
+from typing import List
 from abc import abstractmethod
 
 import torch
@@ -13,14 +13,12 @@ from torch.nn import Identity
 
 from grconvnet.datatypes import ImageGrasp, RealGrasp
 from grconvnet.utils.geometry import get_antipodal_points
-from grconvnet.base import PipelineBase
 from . import custom_transforms as CT
 
 
-class PostprocessorBase(PipelineBase):
-    @classmethod
-    def from_config(cls, config: Dict[str, Any]) -> "PostprocessorBase":
-        return super().from_config(config, "postprocessing")
+class PostprocessorBase:
+    def __init__(self):
+        self.intermediate_results = {}
 
     @abstractmethod
     def __call__(
@@ -143,11 +141,7 @@ class Postprocessor(PostprocessorBase):
         return grasps
 
 
-class Img2WorldConverter(PipelineBase):
-    @classmethod
-    def from_config(cls, config: Dict[str, Any]) -> "Img2WorldConverter":
-        return super().from_config(config, "postprocessing")
-
+class Img2WorldConverter:
     def __init__(
         self,
         coord_converter: CT.Img2WorldCoordConverter,
@@ -160,6 +154,8 @@ class Img2WorldConverter(PipelineBase):
         self.img2world_converter = coord_converter
         self.decropper = decropper or Identity()
         self.height_adjuster = height_adjuster or Identity()
+
+        self.intermediate_results = {}
 
     def _decrop_grasp(self, grasp: ImageGrasp) -> ImageGrasp:
         # first we account for the fact that the image was resized and/or cropped
