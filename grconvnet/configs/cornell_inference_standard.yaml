@@ -1,0 +1,18 @@
+class: "grconvnet.utils.processing.End2EndProcessor"
+model:
+  class: "grconvnet.models.GenerativeResnet"
+  constructor: "from_config"
+  jit_path: "cornell-randsplit-rgbd-grconvnet3-drop1-ch32/epoch_15_iou_97.pt"
+  # device: "cuda"
+
+preprocessor:
+  class: "grconvnet.preprocessing.Preprocessor"
+  mask_rgb_neg_color: null # no masking used
+  mask_rgb_pos_color: null # no masking used
+  resize: false
+
+postprocessor:
+  class: "grconvnet.postprocessing.Postprocessor"
+  n_grasps: 3
+
+img2world_converter: null
