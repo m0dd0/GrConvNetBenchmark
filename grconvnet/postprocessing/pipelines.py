@@ -1,8 +1,8 @@
 """_summary_
 """
 
-from typing import List, Any, Dict
-from abc import ABC, abstractmethod
+from typing import List
+from abc import abstractmethod
 
 import torch
 import numpy as np
@@ -16,9 +16,9 @@ from grconvnet.utils.geometry import get_antipodal_points
 from . import custom_transforms as CT
 
 
-class PostprocessorBase(ABC):
+class PostprocessorBase:
     def __init__(self):
-        self.intermediate_results: Dict[str, Any] = {}
+        self.intermediate_results = {}
 
     @abstractmethod
     def __call__(
@@ -141,19 +141,20 @@ class Postprocessor(PostprocessorBase):
         return grasps
 
 
-class Img2WorldConverter:  # TODO use genreal base class
+class Img2WorldConverter:
     def __init__(
         self,
         coord_converter: CT.Img2WorldCoordConverter,
         decropper: CT.Decropper = None,
         height_adjuster: CT.GraspHeightAdjuster = None,
     ) -> NDArray[Shape["3"], Float]:
+        super().__init__()
+
         # sub converter
-        self.img2world_converter = coord_converter
+        self.coord_converter = coord_converter
         self.decropper = decropper or Identity()
         self.height_adjuster = height_adjuster or Identity()
 
-        # intermediate results
         self.intermediate_results = {}
 
     def _decrop_grasp(self, grasp: ImageGrasp) -> ImageGrasp:
@@ -182,7 +183,7 @@ class Img2WorldConverter:  # TODO use genreal base class
         )
 
         antipodal_points_world = [
-            self.img2world_converter(p, center_depth) for p in antipodal_points_img
+            self.coord_converter(p, center_depth) for p in antipodal_points_img
         ]
 
         width_world = np.linalg.norm(
@@ -197,7 +198,7 @@ class Img2WorldConverter:  # TODO use genreal base class
         )
 
         antipodal_points_world = [
-            self.img2world_converter(p, center_depth) for p in antipodal_points_img
+            self.coord_converter(p, center_depth) for p in antipodal_points_img
         ]
         self.intermediate_results["antipodal_points_world"] = antipodal_points_world
 
@@ -226,7 +227,7 @@ class Img2WorldConverter:  # TODO use genreal base class
 
         # convert the grasp center to world frame
         center_depth = self._get_center_depth(grasp_decropped, orig_depth_image)
-        center_world = self.img2world_converter(grasp_decropped.center, center_depth)
+        center_world = self.coord_converter(grasp_decropped.center, center_depth)
 
         # convert the width of the grasp
         width_world = self._get_width_world(grasp_decropped, center_depth)

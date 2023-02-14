@@ -21,7 +21,7 @@ class End2EndProcessor:
     ):
         # TODO use or syntax for default values
         if model is None:
-            model = GenerativeResnet.from_state_dict_path()
+            model = GenerativeResnet.from_jit()
         self.model = model
 
         if preprocessor is None:
@@ -35,7 +35,6 @@ class End2EndProcessor:
         self.img2world_converter = img2world_converter
 
     def __call__(self, sample: CameraData) -> Dict[str, Any]:
-
         input_tensor = self.preprocessor(sample)
         input_tensor = input_tensor.to(next(self.model.parameters()).device)
         input_tensor = input_tensor.unsqueeze(0)
