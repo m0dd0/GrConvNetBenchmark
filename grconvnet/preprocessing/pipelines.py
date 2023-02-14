@@ -104,12 +104,10 @@ class Preprocessor(PreprocessorBase):
         """
         super().__init__()
 
-        mask_rgb_neg_color = (
-            torch.tensor(mask_rgb_neg_color) if mask_rgb_neg_color else None
-        )
-        mask_rgb_pos_color = (
-            torch.tensor(mask_rgb_pos_color) if mask_rgb_pos_color else None
-        )
+        if mask_rgb_neg_color is not None:
+            mask_rgb_neg_color = torch.tensor(mask_rgb_neg_color)
+        if mask_rgb_pos_color is not None:
+            mask_rgb_pos_color = torch.tensor(mask_rgb_pos_color)
 
         # TODO refactor in a modular way (subcomponents as init arguments)
 

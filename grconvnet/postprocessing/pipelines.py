@@ -151,7 +151,7 @@ class Img2WorldConverter:
         super().__init__()
 
         # sub converter
-        self.img2world_converter = coord_converter
+        self.coord_converter = coord_converter
         self.decropper = decropper or Identity()
         self.height_adjuster = height_adjuster or Identity()
 
@@ -183,7 +183,7 @@ class Img2WorldConverter:
         )
 
         antipodal_points_world = [
-            self.img2world_converter(p, center_depth) for p in antipodal_points_img
+            self.coord_converter(p, center_depth) for p in antipodal_points_img
         ]
 
         width_world = np.linalg.norm(
@@ -198,7 +198,7 @@ class Img2WorldConverter:
         )
 
         antipodal_points_world = [
-            self.img2world_converter(p, center_depth) for p in antipodal_points_img
+            self.coord_converter(p, center_depth) for p in antipodal_points_img
         ]
         self.intermediate_results["antipodal_points_world"] = antipodal_points_world
 
@@ -227,7 +227,7 @@ class Img2WorldConverter:
 
         # convert the grasp center to world frame
         center_depth = self._get_center_depth(grasp_decropped, orig_depth_image)
-        center_world = self.img2world_converter(grasp_decropped.center, center_depth)
+        center_world = self.coord_converter(grasp_decropped.center, center_depth)
 
         # convert the width of the grasp
         width_world = self._get_width_world(grasp_decropped, center_depth)
