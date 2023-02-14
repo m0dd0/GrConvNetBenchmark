@@ -1,0 +1,22 @@
+model:
+  jit: "cornell-randsplit-rgbd-grconvnet3-drop1-ch32/epoch_15_iou_97.pt"
+  # device: "cuda"
+
+preprocessor:
+  class: "grconvnet.preprocessing.Preprocessor"
+  mask_rgb_neg_color: [255, 255, 255]
+  mask_rgb_pos_color: [0, 0, 0]
+  resize: true
+
+postprocessor:
+  class: ["grconvnet", "postprocessing", "Postprocessor"]
+  n_grasps: 3
+
+# img2world_converter:
+#   class: "Img2WorldConverter"
+#   coord_converter: null
+#   decropper: null
+#   height_adjuster: 
+#     class: GraspHeightAdjuster
+#     min_height: 0.01,
+#     target_grasp_depth: 0.04

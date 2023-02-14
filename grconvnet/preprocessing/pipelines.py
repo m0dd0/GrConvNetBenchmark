@@ -11,12 +11,14 @@ import numpy as np
 
 from grconvnet._orig.utils.data.camera_data import CameraData as CameraDataLegacy
 from grconvnet.datatypes import CameraData, DatasetPoint
+from grconvnet.base import PipelineBase
 from . import custom_transforms as CT
 
 
-class PreprocessorBase:
-    def __init__(self):
-        self.intermediate_results: Dict[str, Any] = {}
+class PreprocessorBase(PipelineBase):
+    @classmethod
+    def from_config(cls, config: Dict[str, Any]) -> "PreprocessorBase":
+        return super().from_config(config, "preprocessing")
 
     @abstractmethod
     def __call__(self, sample: DatasetPoint) -> TensorType[4, 224, 224]:
@@ -103,6 +105,13 @@ class Preprocessor(PreprocessorBase):
             mask_rgb_pos_color (TensorType[&quot;3&quot;], optional): _description_. Defaults to None.
         """
         super().__init__()
+
+        mask_rgb_neg_color = (
+            torch.tensor(mask_rgb_neg_color) if mask_rgb_neg_color else None
+        )
+        mask_rgb_pos_color = (
+            torch.tensor(mask_rgb_pos_color) if mask_rgb_pos_color else None
+        )
 
         # TODO refactor in a modular way (subcomponents as init arguments)
 
