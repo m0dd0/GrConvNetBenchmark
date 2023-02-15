@@ -32,6 +32,24 @@ class End2EndProcessor:
         postprocessor: PostprocessorBase = None,
         img2world_converter: Callable = None,
     ):
+        """This is a utility class that combines the preprocessing, inference and
+        postprocessing steps into a single callable object. While executing the
+        different steps, it also collects intermediate results and stores them.
+        These results can be used for debugging or visualization purposes.
+        The input of the call is a list of samples, which are processed in a
+        batched manner. The output is a list of dictionaries, where each dictionary
+        contains the results of the processing steps for a single sample.
+        Note that this used no dataloader to since the dataloader is not
+        able to output the intermediate results in the preprocessing steps.
+        Therfore this module only is for evaluation and debugging purposes and not
+        for training.
+
+        Args:
+            model (GenerativeResnet, optional): _description_. Defaults to None.
+            preprocessor (PreprocessorBase, optional): _description_. Defaults to None.
+            postprocessor (PostprocessorBase, optional): _description_. Defaults to None.
+            img2world_converter (Callable, optional): _description_. Defaults to None.
+        """
         self.model = model or GenerativeResnet.from_jit()
         self.preprocessor = preprocessor or Preprocessor()
         self.postprocessor = postprocessor or Postprocessor()
