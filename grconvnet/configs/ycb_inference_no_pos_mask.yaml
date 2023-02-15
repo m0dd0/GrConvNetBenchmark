@@ -1,0 +1,25 @@
+class: "grconvnet.utils.processing.End2EndProcessor"
+model:
+  class: "grconvnet.models.GenerativeResnet"
+  constructor: "from_config"
+  jit_path: "cornell-randsplit-rgbd-grconvnet3-drop1-ch32/epoch_15_iou_97.pt"
+  # device: "cuda"
+
+preprocessor:
+  class: "grconvnet.preprocessing.Preprocessor"
+  mask_rgb_neg_color: [255, 255, 255]
+  mask_rgb_pos_color: null
+  resize: true
+
+postprocessor:
+  class: "grconvnet.postprocessing.Postprocessor"
+  n_grasps: 3
+
+img2world_converter:
+  class: "grconvnet.postprocessing.Img2WorldConverter"
+  coord_converter: null # this submodule depends on properties of the (first) sample so we cannot define it in advabce
+  decropper: null # this submodule depends on properties of the (first) sample so we cannot define it in advabce
+  height_adjuster: 
+    class: "grconvnet.postprocessing.GraspHeightAdjuster"
+    min_height: 0.01
+    target_grasp_depth: 0.04
