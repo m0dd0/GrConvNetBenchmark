@@ -167,6 +167,15 @@ def process_dataset(
                 "grasps_world": process_data["grasps_world"]
                 if process_data["sample"].cam_intrinsics is not None
                 else None,
+                "cam_intrinsics": process_data["sample"].cam_intrinsics
+                if process_data["sample"].cam_intrinsics is not None
+                else None,
+                "cam_pos": process_data["sample"].cam_pos
+                if process_data["sample"].cam_pos is not None
+                else None,
+                "cam_rot": process_data["sample"].cam_rot
+                if process_data["sample"].cam_rot is not None
+                else None,
                 "model_input": process_data["model_input"],
                 "overview": fig,
             }
@@ -220,10 +229,18 @@ def process_ycb(dataset_path, config_path, export_path, batch_size):
 
 
 if __name__ == "__main__":
-    for i in range(1, 2):
-        process_ycb(
-            dataset_path=Path.home() / "Documents" / f"ycb_sim_data_{i}",
-            config_path=Path(__file__).parent.parent / "configs" / "ycb_inference.yaml",
-            export_path=Path(__file__).parent.parent / "results" / f"ycb_{i}",
-            batch_size=100,
-        )
+    batch_size = 10
+    # config_suffix = "_no_pos_mask"
+    config_suffix = ""
+    i = 2
+
+    process_ycb(
+        dataset_path=Path.home() / "Documents" / f"ycb_sim_data_{i}",
+        config_path=Path(__file__).parent.parent
+        / "configs"
+        / f"ycb_inference{config_suffix}.yaml",
+        export_path=Path(__file__).parent.parent
+        / "results"
+        / f"ycb_{i}_b{batch_size}{config_suffix}",
+        batch_size=batch_size,
+    )
