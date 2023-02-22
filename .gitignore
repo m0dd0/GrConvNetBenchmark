@@ -1,12 +1,9 @@
 .vscode
-venv
 .ipynb_checkpoints/
-
 __pycache__
 *.egg-info
 *.tmp
+venv
 
-grconvnet/data/datasets
-grconvnet/results/*
+grconvnet/data/
 notebooks/00_experiments.ipynb
-# grconvnet/checkpoints/*
