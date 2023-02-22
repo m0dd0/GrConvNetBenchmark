@@ -40,8 +40,8 @@ class Masker:
         self, negative_value: TensorType["c"], positive_value: TensorType["c"] = None
     ):
         super().__init__()
-        self.negative_value = negative_value
-        self.positive_value = positive_value
+        self.negative_value = torch.tensor(negative_value)
+        self.positive_value = torch.tensor(positive_value)
 
     def _make_constant_image(
         self, img: TensorType["c", "h", "w"], value: TensorType["c"]

@@ -10,7 +10,7 @@ from torchtyping import TensorType
 import numpy as np
 
 from grconvnet._orig.utils.data.camera_data import CameraData as CameraDataLegacy
-from grconvnet.datatypes import YCBData, CornellData, DatasetPoint
+from grconvnet.datatypes import CornellData, DatasetPoint
 from . import custom_transforms as CT
 
 
@@ -28,7 +28,7 @@ class LegacyPreprocessor(PreprocessorBase):
     imlpementation does it. Also uses the same helper classes etc.
     """
 
-    def __call__(self, sample: CameraData) -> TensorType[4, 224, 224]:
+    def __call__(self, sample: CornellData) -> TensorType[4, 224, 224]:
         # the camera data object expsects numpy arrays for its method calls!!!
         orig_resizer = CameraDataLegacy(include_depth=True, include_rgb=True)
 
@@ -44,7 +44,7 @@ class LegacyPreprocessor(PreprocessorBase):
 
 
 class RebuildLegacyPreprocessor(PreprocessorBase):
-    def __call__(self, sample: CameraData) -> TensorType[4, 224, 224]:
+    def __call__(self, sample: CornellData) -> TensorType[4, 224, 224]:
         rgb_np = np.array(sample.rgb).transpose((1, 2, 0))  # (480, 640, 3)
         depth_np = np.array(sample.depth).transpose((1, 2, 0))  # (480, 640, 1)
 
@@ -103,7 +103,7 @@ class Preprocessor(PreprocessorBase):
         """
         super().__init__()
 
-        self.masker = masker
+        self.masker = masker or (lambda rgb, seg: rgb)
         self.reformatter = reformatter
         self.normalizer = CT.FlattenedNormalize(255)
 
@@ -113,13 +113,14 @@ class Preprocessor(PreprocessorBase):
         seg_cropped = self.reformatter(sample.segmentation)
 
         # if the masking values are None the masker will not mask anything
-        rgb_masked = self.rgb_masker(rgb_cropped, seg_cropped)
+        rgb_masked = self.masker(rgb_cropped, seg_cropped)
 
         rgb_norm = self.normalizer(rgb_masked)
         depth_norm = self.normalizer(depth_cropped)
 
         input_tensor = torch.cat([depth_norm, rgb_norm], dim=0)
 
+        self.intermediate_results["initial_sample"] = sample
         self.intermediate_results["rgb_cropped"] = rgb_cropped
         self.intermediate_results["depth_cropped"] = depth_cropped
         self.intermediate_results["seg_cropped"] = seg_cropped

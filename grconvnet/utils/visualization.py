@@ -64,10 +64,10 @@ def world_grasps_ax(
 ):
     ax.imshow(backgound)
 
-    world2img_converter = World2ImgCoordConverter(cam_intrinsics, cam_rot, cam_pos)
+    world2img_converter = World2ImgCoordConverter()
 
     for grasp in grasps:
-        center_img = world2img_converter(grasp.center)
+        center_img = world2img_converter(grasp.center, cam_intrinsics, cam_rot, cam_pos)
         ax.scatter(x=center_img[0], y=center_img[1])
 
         antipodal_points_world = get_antipodal_points(
@@ -78,7 +78,10 @@ def world_grasps_ax(
         )
 
         antipodal_points_img = np.array(
-            [world2img_converter(p) for p in antipodal_points_world]
+            [
+                world2img_converter(p, cam_intrinsics, cam_rot, cam_pos)
+                for p in antipodal_points_world
+            ]
         )
         ax.plot(antipodal_points_img[:, 0], antipodal_points_img[:, 1])
 

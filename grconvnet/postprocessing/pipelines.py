@@ -1,7 +1,7 @@
 """_summary_
 """
 
-from typing import List
+from typing import List, Union, Tuple
 from abc import abstractmethod
 
 import torch
@@ -9,7 +9,6 @@ import numpy as np
 from torchtyping import TensorType
 from skimage.filters import gaussian  # pylint:disable=no-name-in-module
 from nptyping import NDArray, Shape, Float
-from torch.nn import Identity
 
 from grconvnet.datatypes import ImageGrasp, RealGrasp
 from grconvnet.utils.geometry import get_antipodal_points
@@ -70,17 +69,20 @@ class Postprocessor(PostprocessorBase):
     def __init__(
         self,
         q_blurrer: CT.SkGaussian,
+        angle_blurrer: CT.SkGaussian,
         width_blurrer: CT.SkGaussian,
-        width_scaler: CT.Scaler,
         width_scaler: CT.Scaler,
         grasp_localizer: CT.GraspLocalizer,
     ):
         super().__init__()
 
-        self.q_blurrer = q_blurrer
-        self.width_blurrer = width_blurrer
+        self.angle_converter = CT.AngleConverter()
+
+        self.q_blurrer = q_blurrer or (lambda x: x)
+        self.width_blurrer = width_blurrer or (lambda x: x)
+        self.angle_blurrer = angle_blurrer or (lambda x: x)
+
         self.width_scaler = width_scaler
-        self.angle_converter = angle_converter
         self.grasp_localizer = grasp_localizer
 
     def __call__(
@@ -97,12 +99,11 @@ class Postprocessor(PostprocessorBase):
         angle_img = self.angle_converter((sin_img, cos_img))
         width_img = self.width_scaler(width_img)
 
-        if self.blur:
-            q_img = self.q_blurrer(q_img)
-            angle_img = self.angle_blurrer(angle_img)
-            width_img = self.width_blurrer(width_img)
+        q_img = self.q_blurrer(q_img)
+        angle_img = self.angle_blurrer(angle_img)
+        width_img = self.width_blurrer(width_img)
 
-        grasp_centers = self.localizer(q_img)
+        grasp_centers = self.grasp_localizer(q_img)
         grasp_angles = angle_img[tuple(grasp_centers.T)]
         grasp_widths = width_img[tuple(grasp_centers.T)]
         grasp_qualities = q_img[tuple(grasp_centers.T)]
@@ -135,24 +136,28 @@ class Img2WorldConverter:
     def __init__(
         self,
         coord_converter: CT.Img2WorldCoordConverter,
-        decropper: CT.Decropper = None,
+        decropper: Union[CT.DeCenterCrop, CT.DeCenterCropResized()] = None,
         height_adjuster: CT.GraspHeightAdjuster = None,
     ) -> NDArray[Shape["3"], Float]:
         super().__init__()
 
         # sub converter
         self.coord_converter = coord_converter
-        self.decropper = decropper or Identity()
-        self.height_adjuster = height_adjuster or Identity()
+        self.decropper = decropper or (lambda x, y: x)
+        self.height_adjuster = height_adjuster or (lambda x: x)
 
         self.intermediate_results = {}
 
-    def _decrop_grasp(self, grasp: ImageGrasp) -> ImageGrasp:
+    def _decrop_grasp(
+        self, grasp: ImageGrasp, orig_img_size: Tuple[int, int]
+    ) -> ImageGrasp:
         # first we account for the fact that the image was resized and/or cropped
-        center_decropped = self.decropper(grasp.center)
+        center_decropped = self.decropper(grasp.center, orig_img_size)
 
         p1, p2 = get_antipodal_points(grasp.center, -grasp.angle, grasp.width)
-        width_decropped = np.linalg.norm(self.decropper(p1) - self.decropper(p2))
+        width_decropped = np.linalg.norm(
+            self.decropper(p1, orig_img_size) - self.decropper(p2, orig_img_size)
+        )
         grasp_decropped = ImageGrasp(
             center_decropped, grasp.quality, grasp.angle, width_decropped
         )
@@ -167,7 +172,7 @@ class Img2WorldConverter:
 
         return center_depth
 
-    def _get_width_world(
+    def _get_antipodal_points_world(
         self,
         grasp_decropped: ImageGrasp,
         center_depth: float,
@@ -184,6 +189,11 @@ class Img2WorldConverter:
             for p in antipodal_points_img
         ]
 
+        return antipodal_points_world
+
+    def _get_width_world(
+        self, antipodal_points_world: List[NDArray[Shape["3"], Float]]
+    ):
         width_world = np.linalg.norm(
             antipodal_points_world[0] - antipodal_points_world[1]
         )
@@ -192,22 +202,8 @@ class Img2WorldConverter:
 
     def _get_angle_world(
         self,
-        grasp_decropped: ImageGrasp,
-        center_depth: float,
-        cam_intrinsics: NDArray[Shape["3,3"], Float],
-        cam_rot: NDArray[Shape["3,3"], Float],
-        cam_pos: NDArray[Shape["3"], Float],
+        antipodal_points_world: List[NDArray[Shape["3"], Float]],
     ):
-        antipodal_points_img = get_antipodal_points(
-            grasp_decropped.center, -grasp_decropped.angle, grasp_decropped.width
-        )
-
-        antipodal_points_world = [
-            self.coord_converter(p, center_depth, cam_intrinsics, cam_rot, cam_pos)
-            for p in antipodal_points_img
-        ]
-        self.intermediate_results["antipodal_points_world"] = antipodal_points_world
-
         angle_world = np.arctan2(
             antipodal_points_world[0][1] - antipodal_points_world[1][1],
             antipodal_points_world[0][0] - antipodal_points_world[1][0],
@@ -229,35 +225,25 @@ class Img2WorldConverter:
         cam_rot: NDArray[Shape["3,3"], Float],
         cam_pos: NDArray[Shape["3"], Float],
     ) -> RealGrasp:
-        # if not isinstance(self.decropper, Identity):
-        #     assert tuple(orig_depth_image.shape[1:]) == self.decropper.original_img_size
-
-        grasp_decropped = self._decrop_grasp(grasp)
+        grasp_decropped = self._decrop_grasp(grasp, list(orig_depth_image.shape))
 
         # convert the grasp center to world frame
-        center_depth = self._get_center_depth(
-            grasp_decropped, orig_depth_image, cam_intrinsics, cam_rot, cam_pos
-        )
+        center_depth = self._get_center_depth(grasp_decropped, orig_depth_image)
         center_world = self.coord_converter(
             grasp_decropped.center, center_depth, cam_intrinsics, cam_rot, cam_pos
         )
 
-        # convert the width of the grasp
-        width_world = self._get_width_world(
+        antipodal_points_world = self._get_antipodal_points_world(
             grasp_decropped, center_depth, cam_intrinsics, cam_rot, cam_pos
         )
+
+        # convert the width of the grasp
+        width_world = self._get_width_world(antipodal_points_world)
 
         # convert the angle
-        angle_world = self._get_angle_world(
-            grasp_decropped, center_depth, cam_intrinsics, cam_rot, cam_pos
-        )
+        angle_world = self._get_angle_world(antipodal_points_world)
 
-        grasp_world = RealGrasp(
-            center_world,
-            grasp.quality,
-            angle_world,
-            width_world,
-        )
+        grasp_world = RealGrasp(center_world, grasp.quality, angle_world, width_world)
 
         self.intermediate_results["grasp_decropped"] = grasp_decropped
         self.intermediate_results["center_depth"] = center_depth

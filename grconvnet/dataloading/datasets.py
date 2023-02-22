@@ -10,14 +10,7 @@ from torch.utils.data import Dataset
 import torchvision.transforms.functional as F
 from scipy.spatial.transform import Rotation
 
-from ..datatypes import CameraData
-
-# Datasets __getitem__ should alway return CameraData object which contains rgb, depth and points
-# additional fields can be added to the CameraData (or subclass) object
-# this allows us to use the same dataloader for all datasets
-# therfore all necessary conversions should be done in the __getitem__ method in order
-# to make the return value of the __getitem__ method compatible with the preprocessing pipeline
-# and the dataloader
+from ..datatypes import CornellData, YCBData
 
 
 class CornellDataset(Dataset):
@@ -109,7 +102,7 @@ class CornellDataset(Dataset):
         return segmentation
 
     def __getitem__(self, index):
-        sample = CameraData(
+        sample = CornellData(
             rgb=self.get_rgb(index),
             depth=self.get_depth(index),
             points=self.get_point_cloud(index),
@@ -143,7 +136,7 @@ class YCBSimulationData(Dataset):
 
         simulation_data = np.load(sample_path)
 
-        sample = CameraData(
+        sample = YCBData(
             rgb=torch.from_numpy(simulation_data["rgb_img"]).permute((2, 0, 1)),
             depth=torch.unsqueeze(torch.from_numpy(simulation_data["depth_img"]), 0),
             points=torch.from_numpy(simulation_data["point_cloud"]),

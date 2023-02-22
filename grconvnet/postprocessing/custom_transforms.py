@@ -93,39 +93,77 @@ class LegacyGraspHeightAdjuster:
         return adjusted_grasp
 
 
-class Decropper:
-    def __init__(self, resized_in_preprocess: bool, original_img_size: Tuple[int, int]):
-        """_summary_
-
-        Args:
-            resized_in_preprocess (bool): _description_
-            original_img_size (Tuple[int, int]): Image size in (width, height)
-        """
-        self.resized_in_preprocess = resized_in_preprocess
-        self.original_img_size = original_img_size
-
+class DeCenterCrop:
     def __call__(
-        self, coordinates: NDArray[Shape["2"], Float]
+        self,
+        coordinates: NDArray[Shape["2"], Float],
+        original_img_size: Tuple[int, int],
     ) -> NDArray[Shape["2"], Float]:
-        if not self.resized_in_preprocess:
-            coord_offset = np.array(self.original_img_size) / 2 - 112
-            coord_offset = coord_offset[::-1]
-            scaling_factor = 1
+        coord_offset = np.array(original_img_size) / 2 - 112
+        coord_offset = coord_offset[::-1]
+        scaling_factor = 1
 
+        coordinates = coordinates * scaling_factor + coord_offset
+
+        return coordinates
+
+
+class DeCenterCropResized:
+    def __call__(
+        self,
+        coordinates: NDArray[Shape["2"], Float],
+        original_img_size: Tuple[int, int],
+    ) -> NDArray[Shape["2"], Float]:
+        delta = (max(original_img_size) - min(original_img_size)) / 2
+        coord_offset = np.zeros(2)
+
+        if original_img_size[0] > original_img_size[1]:
+            # landscape format
+            coord_offset[1] = delta
         else:
-            delta = (max(self.original_img_size) - min(self.original_img_size)) / 2
-            coord_offset = np.zeros(2)
-            if self.original_img_size[0] > self.original_img_size[1]:
-                # landscape format
-                coord_offset[1] = delta
-            else:
-                # portrait format
-                coord_offset[0] = delta
-            scaling_factor = min(self.original_img_size) / 224
+            # portrait format
+            coord_offset[0] = delta
+
+        scaling_factor = min(original_img_size) / 224
 
         coordinates = coordinates * scaling_factor + coord_offset
 
         return coordinates  # (x,y)
+
+
+# class Decropper:
+#     def __init__(self, resized_in_preprocess: bool, original_img_size: Tuple[int, int]):
+#         """_summary_
+
+#         Args:
+#             resized_in_preprocess (bool): _description_
+#             original_img_size (Tuple[int, int]): Image size in (width, height)
+#         """
+#         self.resized_in_preprocess = resized_in_preprocess
+#         self.original_img_size = original_img_size
+
+#     def __call__(
+#         self, coordinates: NDArray[Shape["2"], Float]
+#     ) -> NDArray[Shape["2"], Float]:
+#         if not self.resized_in_preprocess:
+#             coord_offset = np.array(self.original_img_size) / 2 - 112
+#             coord_offset = coord_offset[::-1]
+#             scaling_factor = 1
+
+#         else:
+#             delta = (max(self.original_img_size) - min(self.original_img_size)) / 2
+#             coord_offset = np.zeros(2)
+#             if self.original_img_size[0] > self.original_img_size[1]:
+#                 # landscape format
+#                 coord_offset[1] = delta
+#             else:
+#                 # portrait format
+#                 coord_offset[0] = delta
+#             scaling_factor = min(self.original_img_size) / 224
+
+#         coordinates = coordinates * scaling_factor + coord_offset
+
+#         return coordinates  # (x,y)
 
 
 class World2ImgCoordConverter:
