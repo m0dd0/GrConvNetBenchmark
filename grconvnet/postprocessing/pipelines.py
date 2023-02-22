@@ -225,7 +225,7 @@ class Img2WorldConverter:
         cam_rot: NDArray[Shape["3,3"], Float],
         cam_pos: NDArray[Shape["3"], Float],
     ) -> RealGrasp:
-        grasp_decropped = self._decrop_grasp(grasp, list(orig_depth_image.shape))
+        grasp_decropped = self._decrop_grasp(grasp, list(orig_depth_image.shape[1:]))
 
         # convert the grasp center to world frame
         center_depth = self._get_center_depth(grasp_decropped, orig_depth_image)

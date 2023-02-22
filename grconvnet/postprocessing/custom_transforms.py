@@ -181,6 +181,8 @@ class World2ImgCoordConverter:
         # p_img = [[p_ix]  = (p_img_h / p_cz)[:2] = (p_img_h / p_img_h[2])[:2]
         #           p_iy]]
 
+        cam_pos = cam_pos.reshape((3, 1))  # (3,1)
+
         p_world = p_world.reshape((3, 1))  # (3,1)
         p_cam = cam_rot @ (p_world - cam_pos)
         p_img_h = cam_intrinsics @ p_cam
