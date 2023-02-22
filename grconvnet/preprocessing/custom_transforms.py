@@ -25,6 +25,16 @@ class SquareCrop:
         return T.CenterCrop(size=min_dim)(img)
 
 
+class CenterCropResized:
+    def __init__(self, size: int = (224, 224)):
+        self.pipeline = T.Compose([SquareCrop(), T.Resize(size)])
+
+    def __call__(
+        self, img: TensorType["c", "h", "w"]
+    ) -> TensorType["c", "size", "size"]:
+        return self.pipeline(img)
+
+
 class Masker:
     def __init__(
         self, negative_value: TensorType["c"], positive_value: TensorType["c"] = None

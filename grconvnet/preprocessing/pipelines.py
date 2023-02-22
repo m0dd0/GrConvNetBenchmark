@@ -2,7 +2,7 @@
 """
 
 from abc import abstractmethod
-from typing import Any, Dict
+from typing import Any, Dict, Union
 
 from torchvision import transforms as T
 import torch
@@ -10,7 +10,7 @@ from torchtyping import TensorType
 import numpy as np
 
 from grconvnet._orig.utils.data.camera_data import CameraData as CameraDataLegacy
-from grconvnet.datatypes import CameraData, DatasetPoint
+from grconvnet.datatypes import YCBData, CornellData, DatasetPoint
 from . import custom_transforms as CT
 
 
@@ -89,9 +89,8 @@ class RebuildLegacyPreprocessor(PreprocessorBase):
 class Preprocessor(PreprocessorBase):
     def __init__(
         self,
-        resize: bool = False,
-        mask_rgb_neg_color: TensorType["3"] = None,
-        mask_rgb_pos_color: TensorType["3"] = None,
+        reformatter: Union[T.CenterCrop, CT.CenterCropResized],
+        masker: CT.Masker,
     ):
         """_summary_
 
@@ -104,26 +103,11 @@ class Preprocessor(PreprocessorBase):
         """
         super().__init__()
 
-        if mask_rgb_neg_color is not None:
-            mask_rgb_neg_color = torch.tensor(mask_rgb_neg_color)
-        if mask_rgb_pos_color is not None:
-            mask_rgb_pos_color = torch.tensor(mask_rgb_pos_color)
-
-        # TODO refactor in a modular way (subcomponents as init arguments)
-
-        if resize:
-            self.reformatter = T.Compose([CT.SquareCrop(), T.Resize((224, 224))])
-        else:
-            self.reformatter = T.CenterCrop((224, 224))
-
-        self.rgb_masker = CT.Masker(
-            negative_value=mask_rgb_neg_color,
-            positive_value=mask_rgb_pos_color,
-        )
-
+        self.masker = masker
+        self.reformatter = reformatter
         self.normalizer = CT.FlattenedNormalize(255)
 
-    def __call__(self, sample: CameraData) -> TensorType[4, 224, 224]:
+    def __call__(self, sample: DatasetPoint) -> TensorType[4, 224, 224]:
         rgb_cropped = self.reformatter(sample.rgb)
         depth_cropped = self.reformatter(sample.depth)
         seg_cropped = self.reformatter(sample.segmentation)
