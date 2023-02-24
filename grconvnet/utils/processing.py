@@ -1,132 +1,108 @@
-# TODO rewrite
-# def process_dataset(
-#     dataset,
-#     e2e_processor: End2EndProcessor,
-#     exporter: Exporter,
-#     batch_size=10,
-# ):
-#     for i_batch in range((len(dataset) // batch_size) + 1):
-#         j_start = i_batch * batch_size
-#         j_end = min((i_batch + 1) * batch_size, len(dataset))
-#         batch = [dataset[j] for j in range(j_start, j_end)]
-#         print(f"Processing samples {j_start}...{j_end-1}")
+from torch.utils.data import DataLoader
+import torch
+import yaml
+from tqdm import tqdm
+from matplotlib import pyplot as plt
 
-#         process_data_batch = e2e_processor(batch)
-
-#         for process_data in process_data_batch:
-#             fig = vis.overview_fig(
-#                 fig=plt.figure(figsize=(20, 20)),
-#                 original_rgb=vis.make_tensor_displayable(
-#                     process_data["sample"].rgb, True, True
-#                 ),
-#                 preprocessed_rgb=vis.make_tensor_displayable(
-#                     process_data["preprocessor"]["rgb_masked"], True, True
-#                 ),
-#                 q_img=vis.make_tensor_displayable(
-#                     process_data["postprocessor"]["q_img"], False, False
-#                 ),
-#                 angle_img=vis.make_tensor_displayable(
-#                     process_data["postprocessor"]["angle_img"], False, False
-#                 ),
-#                 width_img=vis.make_tensor_displayable(
-#                     process_data["postprocessor"]["width_img"], False, False
-#                 ),
-#                 image_grasps=process_data["grasps_img"],
-#                 world_grasps=process_data["grasps_world"]
-#                 if process_data["sample"].cam_intrinsics is not None
-#                 else None,
-#                 cam_intrinsics=process_data["sample"].cam_intrinsics,
-#                 cam_rot=process_data["sample"].cam_rot,
-#                 cam_pos=process_data["sample"].cam_pos,
-#             )
-#             plt.close(fig)
-
-#             export_data = {
-#                 "original_rgb": process_data["sample"].rgb,
-#                 "rgb_cropped": process_data["preprocessor"]["rgb_cropped"],
-#                 "depth_cropped": process_data["preprocessor"]["depth_cropped"],
-#                 "rgb_masked": process_data["preprocessor"]["rgb_masked"],
-#                 "q_img": process_data["postprocessor"]["q_img"],
-#                 "angle_img": process_data["postprocessor"]["angle_img"],
-#                 "width_img": process_data["postprocessor"]["width_img"],
-#                 "grasps_img": process_data["grasps_img"],
-#                 "grasps_world": process_data["grasps_world"]
-#                 if process_data["sample"].cam_intrinsics is not None
-#                 else None,
-#                 "cam_intrinsics": process_data["sample"].cam_intrinsics
-#                 if process_data["sample"].cam_intrinsics is not None
-#                 else None,
-#                 "cam_pos": process_data["sample"].cam_pos
-#                 if process_data["sample"].cam_pos is not None
-#                 else None,
-#                 "cam_rot": process_data["sample"].cam_rot
-#                 if process_data["sample"].cam_rot is not None
-#                 else None,
-#                 "model_input": process_data["model_input"],
-#                 "overview": fig,
-#             }
-
-#             _ = exporter(export_data, f"{process_data['sample'].name}")
+from grconvnet.models import GenerativeResnet
+from grconvnet.postprocessing import Postprocessor, Img2WorldConverter
+from grconvnet.utils.config import module_from_config
+from grconvnet.utils.misc import get_root_dir
+from grconvnet.utils.export import Exporter
+from grconvnet.utils import visualization as vis
 
 
-# def process_cornell(dataset_path, config_path, export_path, batch_size):
-#     with open(config_path) as f:
-#         config = yaml.safe_load(f)
+def process_dataset(
+    dataloader: DataLoader,
+    model: GenerativeResnet,
+    postprocessor: Postprocessor,
+    img2world_converter: Img2WorldConverter,
+    exporter: Exporter,
+    device: str,
+):
+    for batch in tqdm(dataloader):
+        batch = batch.to(device)
+        preprocessor_results = list(dataloader.dataset.transform.intermediate_results)[
+            -len(batch) :
+        ]
+        samples = [res["initial_sample"] for res in preprocessor_results]
 
-#     dataset = CornellDataset(dataset_path)
+        with torch.no_grad():
+            prediction_batch = model(batch)
 
-#     e2e_processor = module_from_config(config)
+        grasps_img_batch = [postprocessor(pred) for pred in prediction_batch]
+        postprocessor_results = list(postprocessor.intermediate_results)[-len(batch) :]
 
-#     exporter = Exporter(export_dir=export_path)
+        grasps_world_batch = []
+        for sample, gs_img in zip(samples, grasps_img_batch):
+            grasps_world_batch.append(
+                [
+                    img2world_converter(
+                        g_img,
+                        sample.depth,
+                        sample.cam_intrinsics,
+                        sample.cam_rot,
+                        sample.cam_pos,
+                    )
+                    for g_img in gs_img
+                ]
+            )
 
-#     export_path.mkdir(parents=True, exist_ok=True)
-#     with open(export_path / "inference_config.yaml", "w") as f:
-#         yaml.dump(config, f)
+        for sample, pre_result, post_result, gs_img, gs_world in zip(
+            samples,
+            preprocessor_results,
+            postprocessor_results,
+            grasps_img_batch,
+            grasps_world_batch,
+        ):
+            fig = vis.overview_fig(
+                fig=plt.figure(figsize=(20, 20)),
+                original_rgb=vis.make_tensor_displayable(sample.rgb, True, True),
+                preprocessed_rgb=vis.make_tensor_displayable(
+                    pre_result["rgb_masked"], True, True
+                ),
+                q_img=vis.make_tensor_displayable(post_result["q_img"], False, False),
+                angle_img=vis.make_tensor_displayable(
+                    post_result["angle_img"], False, False
+                ),
+                width_img=vis.make_tensor_displayable(
+                    post_result["width_img"], False, False
+                ),
+                image_grasps=gs_img,
+                world_grasps=gs_world,
+                cam_intrinsics=sample.cam_intrinsics,
+                cam_rot=sample.cam_rot,
+                cam_pos=sample.cam_pos,
+            )
+            plt.close(fig)
 
-#     process_dataset(dataset, e2e_processor, exporter, batch_size)
+            export_data = {
+                "grasps_img": gs_img,
+                "grasps_world": gs_world,
+                "cam_intrinsics": sample.cam_intrinsics,
+                "cam_pos": sample.cam_pos,
+                "cam_rot": sample.cam_rot,
+                "overview": fig,
+            }
+
+            _ = exporter(export_data, f"{sample.name}")
 
 
-# def process_ycb(dataset_path, config_path, export_path, batch_size):
-#     # load config
-#     with open(config_path) as f:
-#         config = yaml.safe_load(f)
+if __name__ == "__main__":
+    with open(get_root_dir() / "configs" / "ycb_inference.yaml") as f:
+        config = yaml.safe_load(f)
 
-#     dataset = YCBSimulationData(dataset_path)
+    dataloader = module_from_config(config["dataloader"])
+    model = module_from_config(config["model"])
+    postprocessor = module_from_config(config["postprocessor"])
+    img2world_converter = module_from_config(config["img2world_converter"])
+    exporter = module_from_config(config["exporter"])
 
-#     # instantiate e2e processor
-#     sample = dataset[0]
-#     e2e_processor = module_from_config(config)
-#     e2e_processor.img2world_converter.coord_converter = Img2WorldCoordConverter(
-#         sample.cam_intrinsics, sample.cam_rot, sample.cam_pos
-#     )
-#     e2e_processor.img2world_converter.decropper = Decropper(
-#         resized_in_preprocess=config["preprocessor"]["resize"],
-#         original_img_size=sample.rgb.shape[1:],
-#     )
-
-#     exporter = Exporter(export_dir=export_path)
-
-#     # save config
-#     export_path.mkdir(parents=True, exist_ok=True)
-#     with open(export_path / "inference_config.yaml", "w") as f:
-#         yaml.dump(config, f)
-
-#     process_dataset(dataset, e2e_processor, exporter, batch_size)
-
-
-# if __name__ == "__main__":
-#     batch_size = 10
-#     config_suffix = "_no_pos_mask"
-#     # config_suffix = ""
-#     i = 3
-
-#     process_ycb(
-#         dataset_path=Path.home() / "Documents" / f"ycb_sim_data_{i}",
-#         config_path=Path(__file__).parent.parent
-#         / "configs"
-#         / f"ycb_inference{config_suffix}.yaml",
-#         export_path=Path(__file__).parent.parent
-#         / "results"
-#         / f"ycb_{i}_b{batch_size}{config_suffix}",
-#         batch_size=batch_size,
-#     )
+    process_dataset(
+        dataloader,
+        model,
+        postprocessor,
+        img2world_converter,
+        exporter,
+        config["model"]["device"],
+    )

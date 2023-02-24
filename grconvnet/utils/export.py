@@ -54,7 +54,7 @@ class Exporter:
         """
         if export_dir is None:
             export_dir = Path(__file__).parent.parent / "results"
-        self.export_dir = export_dir
+        self.export_dir = Path(export_dir)
 
         self.json_encoder = json_encoder
         if self.json_encoder is None:
