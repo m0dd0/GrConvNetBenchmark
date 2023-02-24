@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from abc import ABC
 
 from nptyping import NDArray, Float, Shape
+import numpy as np
 from torchtyping import TensorType
 import torch
 
@@ -22,9 +23,22 @@ class YCBData(DatasetPoint):
     depth: TensorType[1, "h", "w", torch.float32]
     points: TensorType["n_points", 3]
     segmentation: TensorType[1, "h", "w", torch.uint8]
-    cam_intrinsics: NDArray[Shape["3, 3"], Float] = None
-    cam_pos: NDArray[Shape["3"], Float] = None
-    cam_rot: NDArray[Shape["4"], Float] = None
+    cam_intrinsics: NDArray[Shape["3, 3"], Float]
+    cam_pos: NDArray[Shape["3"], Float]
+    cam_rot: NDArray[Shape["4"], Float]
+
+    def __repr__(self):
+        return (
+            "YCBData:\n"
+            + f"name={self.name}\n"
+            + f"rgb={self.rgb.shape}\n"
+            + f"depth={self.depth.shape}\n"
+            + f"points={self.points.shape}\n"
+            + f"segmentation={self.segmentation.shape} ({np.unique(self.segmentation)})\n"
+            + f"cam_intrinsics={self.cam_intrinsics}\n"
+            + f"cam_pos={self.cam_pos}\n"
+            + f"cam_rot={self.cam_rot}"
+        )
 
 
 @dataclass
