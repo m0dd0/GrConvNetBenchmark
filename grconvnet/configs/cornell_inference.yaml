@@ -22,9 +22,11 @@ postprocessor:
   width_blurrer:
     class: "grconvnet.postprocessing.SkGaussian"
     sigma: 1
-  width_scaler: "grconvnet.postprocessing.Scaler"
+  width_scaler:
+    class: "grconvnet.postprocessing.Scaler"
     factor: 150
-  grasp_localizer: "grconvnet.posprocessing.GraspLocalizer"
+  grasp_localizer:
+    class: "grconvnet.postprocessing.GraspLocalizer"
     min_distance: 20
     threshold: 0.2
     n_grasps: 3

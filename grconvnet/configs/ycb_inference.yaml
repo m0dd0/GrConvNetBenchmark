@@ -50,10 +50,11 @@ img2world_converter:
   decropper:
     class: "grconvnet.postprocessing.DeCenterCropResized"
   height_adjuster:
-    class: "grconvnet.postprocessing.GraspHeightAdjuster"
-    min_height: 0.01
-    target_grasp_depth: 0.04
+    null
+    # class: "grconvnet.postprocessing.GraspHeightAdjuster"
+    # min_height: 0.01
+    # target_grasp_depth: 0.04
 
 exporter:
   class: "grconvnet.utils.export.Exporter"
-  export_dir: "/home/moritz/Documents/GrConvNetBenchmark/grconvnet/data/results/ycb_sim_data_1"
+  export_dir: "/home/moritz/Documents/GrConvNetBenchmark/grconvnet/data/results/ycb_sim_data_1_no_height"
