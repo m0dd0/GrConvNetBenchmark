@@ -1,8 +1,9 @@
 """_summary_
 """
 
-from typing import List, Union, Tuple
+from typing import List, Union, Tuple, Dict, Iterable, Any
 from abc import abstractmethod
+from collections import deque
 
 import torch
 import numpy as np
@@ -16,8 +17,10 @@ from . import custom_transforms as CT
 
 
 class PostprocessorBase:
-    def __init__(self):
-        self.intermediate_results = {}
+    def __init__(self, intermediate_results_queue_size: int):
+        self.intermediate_results: Iterable[Dict[str, Any]] = deque(
+            maxlen=intermediate_results_queue_size
+        )
 
     @abstractmethod
     def __call__(
@@ -27,7 +30,7 @@ class PostprocessorBase:
 
 
 class LegacyPostprocessor(PostprocessorBase):
-    def __init__(self, blur: bool = True):
+    def __init__(self, blur: bool = True, intermediate_results_queue_size: int = 1):
         """Postprocessing as done in the original implementation. This converts
         the output of the NN to grasp angles, scaled the width, and blurres the
         images. Results in
@@ -36,7 +39,7 @@ class LegacyPostprocessor(PostprocessorBase):
             blur (bool, optional): Whether to blurr the resultign images.
                 Defaults to True.
         """
-        super().__init__()
+        super().__init__(intermediate_results_queue_size)
 
         self.blur = blur
 
@@ -56,9 +59,10 @@ class LegacyPostprocessor(PostprocessorBase):
             angle_img = gaussian(angle_img, 2.0, preserve_range=True)
             width_img = gaussian(width_img, 1.0, preserve_range=True)
 
-        self.intermediate_results["q_img"] = q_img
-        self.intermediate_results["angle_img"] = angle_img
-        self.intermediate_results["width_img"] = width_img
+        self.intermediate_results.append({})
+        self.intermediate_results[-1]["q_img"] = q_img
+        self.intermediate_results[-1]["angle_img"] = angle_img
+        self.intermediate_results[-1]["width_img"] = width_img
 
         # no conversion to ImageGrasp as this was not part of the original
         # returning empty list for consistency
@@ -73,8 +77,9 @@ class Postprocessor(PostprocessorBase):
         width_blurrer: CT.SkGaussian,
         width_scaler: CT.Scaler,
         grasp_localizer: CT.GraspLocalizer,
+        intermediate_results_queue_size: int = 1,
     ):
-        super().__init__()
+        super().__init__(intermediate_results_queue_size)
 
         self.angle_converter = CT.AngleConverter()
 
@@ -125,9 +130,10 @@ class Postprocessor(PostprocessorBase):
             for g in grasps_np
         ]
 
-        self.intermediate_results["q_img"] = q_img
-        self.intermediate_results["angle_img"] = angle_img
-        self.intermediate_results["width_img"] = width_img
+        self.intermediate_results.append({})
+        self.intermediate_results[-1]["q_img"] = q_img
+        self.intermediate_results[-1]["angle_img"] = angle_img
+        self.intermediate_results[-1]["width_img"] = width_img
 
         return grasps
 
@@ -138,6 +144,7 @@ class Img2WorldConverter:
         coord_converter: CT.Img2WorldCoordConverter,
         decropper: Union[CT.DeCenterCrop, CT.DeCenterCropResized()] = None,
         height_adjuster: CT.GraspHeightAdjuster = None,
+        intermediate_results_queue_size: int = 1,
     ) -> NDArray[Shape["3"], Float]:
         super().__init__()
 
@@ -146,7 +153,7 @@ class Img2WorldConverter:
         self.decropper = decropper or (lambda x, y: x)
         self.height_adjuster = height_adjuster or (lambda x: x)
 
-        self.intermediate_results = {}
+        self.intermediate_results = deque(maxlen=intermediate_results_queue_size)
 
     def _decrop_grasp(
         self, grasp: ImageGrasp, orig_img_size: Tuple[int, int]
@@ -245,9 +252,10 @@ class Img2WorldConverter:
 
         grasp_world = RealGrasp(center_world, grasp.quality, angle_world, width_world)
 
-        self.intermediate_results["grasp_decropped"] = grasp_decropped
-        self.intermediate_results["center_depth"] = center_depth
-        self.intermediate_results["grasp_world_raw"] = grasp_world
+        self.intermediate_results.append({})
+        self.intermediate_results[-1]["grasp_decropped"] = grasp_decropped
+        self.intermediate_results[-1]["center_depth"] = center_depth
+        self.intermediate_results[-1]["grasp_world_raw"] = grasp_world
 
         grasp_world = self.height_adjuster(grasp_world)
 
