@@ -32,6 +32,7 @@ setuptools.setup(
         "open3d",
         "torchtyping",
         "nptyping",
+        "tqdm",
     ],
     extras_require={"dev": ["black", "pylint", "jupyter"]},
     include_package_data=True,

@@ -1,8 +1,12 @@
+import shutil
+from pathlib import Path
+
 from torch.utils.data import DataLoader
 import torch
 import yaml
 from tqdm import tqdm
 from matplotlib import pyplot as plt
+from PIL import Image
 
 from grconvnet.models import GenerativeResnet
 from grconvnet.postprocessing import Postprocessor, Img2WorldConverter
@@ -83,20 +87,28 @@ def process_dataset(
                 "cam_pos": sample.cam_pos,
                 "cam_rot": sample.cam_rot,
                 "overview": fig,
+                "original_rgb": Image.fromarray(
+                    vis.make_tensor_displayable(sample.rgb, True, True)
+                ),
+                "preprocessed_rgb": Image.fromarray(
+                    vis.make_tensor_displayable(pre_result["rgb_masked"], True, True)
+                ),
             }
 
             _ = exporter(export_data, f"{sample.name}")
 
 
-if __name__ == "__main__":
-    with open(get_root_dir() / "configs" / "ycb_inference.yaml") as f:
+def process_dataset_from_config(config_path):
+    with open(config_path) as f:
         config = yaml.safe_load(f)
 
+    exporter = module_from_config(config["exporter"])
     dataloader = module_from_config(config["dataloader"])
     model = module_from_config(config["model"])
     postprocessor = module_from_config(config["postprocessor"])
     img2world_converter = module_from_config(config["img2world_converter"])
-    exporter = module_from_config(config["exporter"])
+
+    shutil.copy(config_path, Path(config["exporter"]["export_dir"]) / "config.yaml")
 
     process_dataset(
         dataloader,
@@ -106,3 +118,9 @@ if __name__ == "__main__":
         exporter,
         config["model"]["device"],
     )
+
+
+if __name__ == "__main__":
+    config_path = get_root_dir() / "configs" / "ycb_inference.yaml"
+
+    process_dataset_from_config(config_path)
