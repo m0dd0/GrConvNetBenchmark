@@ -1,0 +1,3 @@
+[submodule "grconvnet/_orig"]
+	path = grconvnet/_orig
+	url = https://github.com/skumra/robotic-grasping.git
