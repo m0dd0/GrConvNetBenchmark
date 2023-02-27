@@ -34,7 +34,7 @@ setuptools.setup(
         "nptyping",
         "tqdm",
     ],
-    extras_require={"dev": ["black", "pylint", "jupyter"]},
+    extras_require={"dev": ["black", "pylint", "jupyter", "ipykernel"]},
     include_package_data=True,
     use_scm_version=True,
 )

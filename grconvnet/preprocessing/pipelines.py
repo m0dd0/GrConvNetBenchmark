@@ -10,7 +10,7 @@ import torch
 from torchtyping import TensorType
 import numpy as np
 
-from grconvnet._orig.utils.data.camera_data import CameraData as CameraDataLegacy
+# from grconvnet._orig.utils.data.camera_data import CameraData as CameraDataLegacy
 from grconvnet.datatypes import CornellData, DatasetPoint
 from . import custom_transforms as CT
 
@@ -26,24 +26,24 @@ class PreprocessorBase:
         pass
 
 
-class LegacyPreprocessor(PreprocessorBase):
-    """Preprocesses a rgb image and depth image in exactly the same way the original
-    imlpementation does it. Also uses the same helper classes etc.
-    """
+# class LegacyPreprocessor(PreprocessorBase):
+#     """Preprocesses a rgb image and depth image in exactly the same way the original
+#     imlpementation does it. Also uses the same helper classes etc.
+#     """
 
-    def __call__(self, sample: CornellData) -> TensorType[4, 224, 224]:
-        # the camera data object expsects numpy arrays for its method calls!!!
-        orig_resizer = CameraDataLegacy(include_depth=True, include_rgb=True)
+#     def __call__(self, sample: CornellData) -> TensorType[4, 224, 224]:
+#         # the camera data object expsects numpy arrays for its method calls!!!
+#         orig_resizer = CameraDataLegacy(include_depth=True, include_rgb=True)
 
-        # (1, 4, 224, 224)
-        input_tensor, _, _ = orig_resizer.get_data(
-            rgb=np.array(sample.rgb).transpose((1, 2, 0)),
-            depth=np.array(sample.depth).transpose((1, 2, 0)),
-        )
+#         # (1, 4, 224, 224)
+#         input_tensor, _, _ = orig_resizer.get_data(
+#             rgb=np.array(sample.rgb).transpose((1, 2, 0)),
+#             depth=np.array(sample.depth).transpose((1, 2, 0)),
+#         )
 
-        input_tensor = input_tensor.squeeze(0)  # (4, 224, 224)
+#         input_tensor = input_tensor.squeeze(0)  # (4, 224, 224)
 
-        return input_tensor
+#         return input_tensor
 
 
 class RebuildLegacyPreprocessor(PreprocessorBase):
