@@ -145,6 +145,7 @@ class Img2WorldConverter:
         decropper: Union[CT.DeCenterCrop, CT.DeCenterCropResized()] = None,
         height_adjuster: CT.GraspHeightAdjuster = None,
         intermediate_results_queue_size: int = 1,
+        max_gripper_width: float = None,
     ) -> NDArray[Shape["3"], Float]:
         super().__init__()
 
@@ -154,6 +155,8 @@ class Img2WorldConverter:
         self.height_adjuster = height_adjuster or (lambda x: x)
 
         self.intermediate_results = deque(maxlen=intermediate_results_queue_size)
+
+        self.max_gripper_width = max_gripper_width
 
     def _decrop_grasp(
         self, grasp: ImageGrasp, orig_img_size: Tuple[int, int]
@@ -204,6 +207,9 @@ class Img2WorldConverter:
         width_world = np.linalg.norm(
             antipodal_points_world[0] - antipodal_points_world[1]
         )
+
+        if self.max_gripper_width and width_world > self.max_gripper_width:
+            width_world = self.max_gripper_width
 
         return width_world
 
