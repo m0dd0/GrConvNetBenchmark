@@ -1,8 +1,8 @@
 from dataclasses import dataclass
-from typing import List
 from abc import ABC
 
 from nptyping import NDArray, Float, Shape
+import numpy as np
 from torchtyping import TensorType
 import torch
 
@@ -14,27 +14,48 @@ import torch
 
 @dataclass
 class DatasetPoint(ABC):
-    pass
+    name: str
 
 
-# TODO split into differnt classes for different datasets
 @dataclass
-class CameraData(DatasetPoint):
+class YCBData(DatasetPoint):
     rgb: TensorType[3, "h", "w", torch.uint8]
     depth: TensorType[1, "h", "w", torch.float32]
     points: TensorType["n_points", 3]
     segmentation: TensorType[1, "h", "w", torch.uint8]
-    name: str
+    cam_intrinsics: NDArray[Shape["3, 3"], Float]
+    cam_pos: NDArray[Shape["3"], Float]
+    cam_rot: NDArray[Shape["4"], Float]
+
+    def __repr__(self):
+        return (
+            "YCBData:\n"
+            + f"name={self.name}\n"
+            + f"rgb={self.rgb.shape}\n"
+            + f"depth={self.depth.shape}\n"
+            + f"points={self.points.shape}\n"
+            + f"segmentation={self.segmentation.shape} ({np.unique(self.segmentation)})\n"
+            + f"cam_intrinsics={self.cam_intrinsics}\n"
+            + f"cam_pos={self.cam_pos}\n"
+            + f"cam_rot={self.cam_rot}"
+        )
+
+
+@dataclass
+class CornellData(DatasetPoint):
+    rgb: TensorType[3, "h", "w", torch.uint8]
+    depth: TensorType[1, "h", "w", torch.float32]
+    points: TensorType["n_points", 3]
+    segmentation: TensorType[1, "h", "w", torch.uint8]
     pos_grasps: TensorType["n_pos_grasps", 4, 2] = None
     neg_grasps: TensorType["n_pos_grasps", 4, 2] = None
-    cam_intrinsics: NDArray[Shape["3, 3"], Float] = None
-    cam_pos: NDArray[Shape["3"], Float] = None
-    cam_rot: NDArray[Shape["4"], Float] = None
 
 
 @dataclass
 class ImageGrasp:
-    center: NDArray[Shape["2"], Float] # (x, y) coordinates when viewing/displaying the image (= (col, row) in image marix) 
+    center: NDArray[
+        Shape["2"], Float
+    ]  # (x, y) coordinates when viewing/displaying the image (= (col, row) in image marix)
     quality: float
     angle: float
     width: float

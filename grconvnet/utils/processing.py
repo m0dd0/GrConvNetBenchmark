@@ -1,91 +1,126 @@
-"""_summary_
-"""
+import shutil
+from pathlib import Path
 
-from typing import Dict, Any, Callable
-
+from torch.utils.data import DataLoader
 import torch
+import yaml
+from tqdm import tqdm
+from matplotlib import pyplot as plt
+from PIL import Image
 
-from grconvnet.datatypes import CameraData
-from grconvnet.preprocessing import Preprocessor, PreprocessorBase
-from grconvnet.postprocessing import Postprocessor, PostprocessorBase
 from grconvnet.models import GenerativeResnet
+from grconvnet.postprocessing import Postprocessor, Img2WorldConverter
+from grconvnet.utils.config import module_from_config
+from grconvnet.utils.misc import get_root_dir
+from grconvnet.utils.export import Exporter
+from grconvnet.utils import visualization as vis
 
 
-class End2EndProcessor:
-    def __init__(
-        self,
-        model: GenerativeResnet = None,
-        preprocessor: PreprocessorBase = None,
-        postprocessor: PostprocessorBase = None,
-        img2world_converter: Callable = None,
-    ):
-        # TODO use or syntax for default values
-        if model is None:
-            model = GenerativeResnet.from_state_dict_path()
-        self.model = model
-
-        if preprocessor is None:
-            preprocessor = Preprocessor()
-        self.preprocessor = preprocessor
-
-        if postprocessor is None:
-            postprocessor = Postprocessor()
-        self.postprocessor = postprocessor
-
-        self.img2world_converter = img2world_converter
-
-    def __call__(self, sample: CameraData) -> Dict[str, Any]:
-
-        input_tensor = self.preprocessor(sample)
-        input_tensor = input_tensor.to(next(self.model.parameters()).device)
-        input_tensor = input_tensor.unsqueeze(0)
+def process_dataset(
+    dataloader: DataLoader,
+    model: GenerativeResnet,
+    postprocessor: Postprocessor,
+    img2world_converter: Img2WorldConverter,
+    exporter: Exporter,
+    device: str,
+):
+    for batch in tqdm(dataloader):
+        batch = batch.to(device)
+        preprocessor_results = list(dataloader.dataset.transform.intermediate_results)[
+            -len(batch) :
+        ]
+        samples = [res["initial_sample"] for res in preprocessor_results]
 
         with torch.no_grad():
-            prediction = self.model(input_tensor)
+            prediction_batch = model(batch)
 
-        grasps_img = self.postprocessor(prediction)
+        grasps_img_batch = [postprocessor(pred) for pred in prediction_batch]
+        postprocessor_results = list(postprocessor.intermediate_results)[-len(batch) :]
 
-        # TODO save all intermediate results of the img2world converter
-        grasps_world = []
-        if self.img2world_converter is not None:
-            grasps_world = [
-                self.img2world_converter(g, sample.depth) for g in grasps_img
-            ]
+        grasps_world_batch = []
+        for sample, gs_img in zip(samples, grasps_img_batch):
+            grasps_world_batch.append(
+                [
+                    img2world_converter(
+                        g_img,
+                        sample.depth,
+                        sample.cam_intrinsics,
+                        sample.cam_rot,
+                        sample.cam_pos,
+                    )
+                    for g_img in gs_img
+                ]
+            )
 
-        process_data = {
-            "preprocessor": self.preprocessor.intermediate_results,
-            "postprocessor": self.postprocessor.intermediate_results,
-            "img2world_converter": self.img2world_converter.intermediate_results
-            if self.img2world_converter is not None
-            else None,
-            "model_input": input_tensor,
-            "sample": sample,
-            "grasps_img": grasps_img,
-            "grasps_world": grasps_world,
-        }
+        for sample, pre_result, post_result, gs_img, gs_world in zip(
+            samples,
+            preprocessor_results,
+            postprocessor_results,
+            grasps_img_batch,
+            grasps_world_batch,
+        ):
+            fig = vis.overview_fig(
+                fig=plt.figure(figsize=(20, 20)),
+                original_rgb=vis.make_tensor_displayable(sample.rgb, True, True),
+                preprocessed_rgb=vis.make_tensor_displayable(
+                    pre_result["rgb_masked"], True, True
+                ),
+                q_img=vis.make_tensor_displayable(post_result["q_img"], False, False),
+                angle_img=vis.make_tensor_displayable(
+                    post_result["angle_img"], False, False
+                ),
+                width_img=vis.make_tensor_displayable(
+                    post_result["width_img"], False, False
+                ),
+                image_grasps=gs_img,
+                world_grasps=gs_world,
+                cam_intrinsics=sample.cam_intrinsics,
+                cam_rot=sample.cam_rot,
+                cam_pos=sample.cam_pos,
+            )
+            plt.close(fig)
 
-        return process_data
+            export_data = {
+                "grasps_img": gs_img,
+                "grasps_world": gs_world,
+                "cam_intrinsics": sample.cam_intrinsics,
+                "cam_pos": sample.cam_pos,
+                "cam_rot": sample.cam_rot,
+                "overview": fig,
+                "original_rgb": Image.fromarray(
+                    vis.make_tensor_displayable(sample.rgb, True, True)
+                ),
+                "preprocessed_rgb": Image.fromarray(
+                    vis.make_tensor_displayable(pre_result["rgb_masked"], True, True)
+                ),
+            }
+
+            _ = exporter(export_data, f"{sample.name}")
 
 
-# class PipelineCompose:
-#     def __init__(self, pipelines: List[Tuple[str, Callable]]):
-#         self.pipelines = pipelines
+def process_dataset_from_config(config_path):
+    with open(config_path) as f:
+        config = yaml.safe_load(f)
 
-#         self.intermediate_results: Dict[str, Any] = {}
+    exporter = module_from_config(config["exporter"])
+    dataloader = module_from_config(config["dataloader"])
+    model = module_from_config(config["model"])
+    postprocessor = module_from_config(config["postprocessor"])
+    img2world_converter = module_from_config(config["img2world_converter"])
 
-#     def __call__(self, sample: CameraData) -> Dict[str, Any]:
-#         self.intermediate_results = {}
+    shutil.copy(config_path, Path(config["exporter"]["export_dir"]) / "config.yaml")
 
-#         for result_name, pipeline in self.pipelines:
-#             sample = pipeline(sample)
-#             self.intermediate_results[result_name] = sample
+    process_dataset(
+        dataloader,
+        model,
+        postprocessor,
+        img2world_converter,
+        exporter,
+        config["model"]["device"],
+    )
 
-#             if hasattr(pipeline, "intermediate_results"):
-#                 for res_name, res in pipeline.intermediate_results.items():
-#                     if res_name in self.intermediate_results:
-#                         raise ValueError(
-#                             f"Name {res_name} already in intermediate results"
-#                         )
-#                     self.intermediate_results[res_name] = res
 
-#         return sample
+if __name__ == "__main__":
+    config_path = get_root_dir() / "configs" / "ycb_inference.yaml"
+
+    process_dataset_from_config(config_path)

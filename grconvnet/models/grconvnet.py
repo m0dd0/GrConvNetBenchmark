@@ -1,43 +1,17 @@
 """_summary_"""
 
-from pathlib import Path
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchtyping import TensorType
 
-from .custom_modules import GraspModel, ResidualBlock
+from .base import GraspModel
+from .custom_modules import ResidualBlock
 
 # NOTE: dimensions of type annotations assume the parametrization used in the paper
 
 
 class GenerativeResnet(GraspModel):
-    @classmethod
-    def from_state_dict_path(
-        cls, model_path: Path = None, device: str = None
-    ) -> "GenerativeResnet":
-        if device is None:
-            device = (
-                torch.device("cuda")
-                if torch.cuda.is_available()
-                else torch.device("cpu")
-            )
-
-        if model_path is None:
-            model_path = (
-                Path(__file__).parent.parent
-                / "checkpoints"
-                / "cornell-randsplit-rgbd-grconvnet3-drop1-ch32"
-                / "epoch_15_iou_97.pt"
-            )
-
-        model = cls()
-        model.load_state_dict(torch.jit.load(model_path).state_dict())
-        model.to(device)
-
-        return model
-
     def __init__(
         self,
         input_channels: int = 4,

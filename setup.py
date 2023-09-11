@@ -19,7 +19,7 @@ setuptools.setup(
     # of a package in order to solve dependencies
     # therfore it might be useful to fix the versions someday
     install_requires=[
-        "numpy",
+        "numpy==1.23.5", # 1.23.5 is the latest versions that is supported by ros_numpy
         "opencv-python",
         "matplotlib",
         "scikit-image",
@@ -32,8 +32,9 @@ setuptools.setup(
         "open3d",
         "torchtyping",
         "nptyping",
+        "tqdm",
     ],
-    extras_require={"dev": ["black", "pylint", "jupyter"]},
+    extras_require={"dev": ["black", "pylint", "jupyter", "ipykernel"]},
     include_package_data=True,
     use_scm_version=True,
 )

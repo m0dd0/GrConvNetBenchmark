@@ -2,49 +2,55 @@
 """
 
 from abc import abstractmethod
-from typing import Any, Dict
+from typing import Any, Dict, Union, Iterable
+from collections import deque
 
 from torchvision import transforms as T
 import torch
 from torchtyping import TensorType
 import numpy as np
 
-from grconvnet._orig.utils.data.camera_data import CameraData as CameraDataLegacy
-from grconvnet.datatypes import CameraData, DatasetPoint
+# from grconvnet._orig.utils.data.camera_data import CameraData as CameraDataLegacy
+from grconvnet.datatypes import CornellData, DatasetPoint
 from . import custom_transforms as CT
 
 
 class PreprocessorBase:
-    def __init__(self):
-        self.intermediate_results: Dict[str, Any] = {}
+    def __init__(self, intermediate_results_queue_size: int):
+        self.intermediate_results: Iterable[Dict[str, Any]] = deque(
+            maxlen=intermediate_results_queue_size
+        )
 
     @abstractmethod
     def __call__(self, sample: DatasetPoint) -> TensorType[4, 224, 224]:
         pass
 
 
-class LegacyPreprocessor(PreprocessorBase):
-    """Preprocesses a rgb image and depth image in exactly the same way the original
-    imlpementation does it. Also uses the same helper classes etc.
-    """
+# class LegacyPreprocessor(PreprocessorBase):
+#     """Preprocesses a rgb image and depth image in exactly the same way the original
+#     imlpementation does it. Also uses the same helper classes etc.
+#     """
 
-    def __call__(self, sample: CameraData) -> TensorType[4, 224, 224]:
-        # the camera data object expsects numpy arrays for its method calls!!!
-        orig_resizer = CameraDataLegacy(include_depth=True, include_rgb=True)
+#     def __call__(self, sample: CornellData) -> TensorType[4, 224, 224]:
+#         # the camera data object expsects numpy arrays for its method calls!!!
+#         orig_resizer = CameraDataLegacy(include_depth=True, include_rgb=True)
 
-        # (1, 4, 224, 224)
-        input_tensor, _, _ = orig_resizer.get_data(
-            rgb=np.array(sample.rgb).transpose((1, 2, 0)),
-            depth=np.array(sample.depth).transpose((1, 2, 0)),
-        )
+#         # (1, 4, 224, 224)
+#         input_tensor, _, _ = orig_resizer.get_data(
+#             rgb=np.array(sample.rgb).transpose((1, 2, 0)),
+#             depth=np.array(sample.depth).transpose((1, 2, 0)),
+#         )
 
-        input_tensor = input_tensor.squeeze(0)  # (4, 224, 224)
+#         input_tensor = input_tensor.squeeze(0)  # (4, 224, 224)
 
-        return input_tensor
+#         return input_tensor
 
 
 class RebuildLegacyPreprocessor(PreprocessorBase):
-    def __call__(self, sample: CameraData) -> TensorType[4, 224, 224]:
+    def __init__(self, intermediate_results_queue_size: int = 1):
+        super().__init__(intermediate_results_queue_size)
+
+    def __call__(self, sample: CornellData) -> TensorType[4, 224, 224]:
         rgb_np = np.array(sample.rgb).transpose((1, 2, 0))  # (480, 640, 3)
         depth_np = np.array(sample.depth).transpose((1, 2, 0))  # (480, 640, 1)
 
@@ -71,17 +77,15 @@ class RebuildLegacyPreprocessor(PreprocessorBase):
         depth_norm = depth_norm.transpose((2, 0, 1))  # (1, 480, 640)
 
         # (4,480,640)
-        input_tensor = np.concatenate(
-            (depth_norm, rgb_norm),
-            0,
-        )
+        input_tensor = np.concatenate((depth_norm, rgb_norm), 0)
 
-        self.intermediate_results["rgb_cropped"] = rgb_cropped
-        self.intermediate_results["depth_cropped"] = depth_cropped
-        self.intermediate_results["seg_cropped"] = seg_cropped
-        self.intermediate_results["rgb_masked"] = rgb_masked
-        self.intermediate_results["rgb_norm"] = rgb_norm
-        self.intermediate_results["depth_norm"] = depth_norm
+        self.intermediate_results.append({})
+        self.intermediate_results[-1]["rgb_cropped"] = rgb_cropped
+        self.intermediate_results[-1]["depth_cropped"] = depth_cropped
+        self.intermediate_results[-1]["seg_cropped"] = seg_cropped
+        self.intermediate_results[-1]["rgb_masked"] = rgb_masked
+        self.intermediate_results[-1]["rgb_norm"] = rgb_norm
+        self.intermediate_results[-1]["depth_norm"] = depth_norm
 
         return torch.from_numpy(input_tensor)
 
@@ -89,9 +93,9 @@ class RebuildLegacyPreprocessor(PreprocessorBase):
 class Preprocessor(PreprocessorBase):
     def __init__(
         self,
-        resize: bool = False,
-        mask_rgb_neg_color: TensorType["3"] = None,
-        mask_rgb_pos_color: TensorType["3"] = None,
+        reformatter: Union[T.CenterCrop, CT.CenterCropResized],
+        masker: CT.Masker,
+        intermediate_results_queue_size: int = 1,
     ):
         """_summary_
 
@@ -102,40 +106,32 @@ class Preprocessor(PreprocessorBase):
             mask_rgb_neg_color (TensorType[&quot;3&quot;], optional): _description_. Defaults to None.
             mask_rgb_pos_color (TensorType[&quot;3&quot;], optional): _description_. Defaults to None.
         """
-        super().__init__()
+        super().__init__(intermediate_results_queue_size)
 
-        # TODO refactor in a modular way (subcomponents as init arguments)
-
-        if resize:
-            self.reformatter = T.Compose([CT.SquareCrop(), T.Resize((224, 224))])
-        else:
-            self.reformatter = T.CenterCrop((224, 224))
-
-        self.rgb_masker = CT.Masker(
-            negative_value=mask_rgb_neg_color,
-            positive_value=mask_rgb_pos_color,
-        )
-
+        self.masker = masker or (lambda rgb, seg: rgb)
+        self.reformatter = reformatter
         self.normalizer = CT.FlattenedNormalize(255)
 
-    def __call__(self, sample: CameraData) -> TensorType[4, 224, 224]:
+    def __call__(self, sample: DatasetPoint) -> TensorType[4, 224, 224]:
         rgb_cropped = self.reformatter(sample.rgb)
         depth_cropped = self.reformatter(sample.depth)
         seg_cropped = self.reformatter(sample.segmentation)
 
         # if the masking values are None the masker will not mask anything
-        rgb_masked = self.rgb_masker(rgb_cropped, seg_cropped)
+        rgb_masked = self.masker(rgb_cropped, seg_cropped)
 
         rgb_norm = self.normalizer(rgb_masked)
         depth_norm = self.normalizer(depth_cropped)
 
         input_tensor = torch.cat([depth_norm, rgb_norm], dim=0)
 
-        self.intermediate_results["rgb_cropped"] = rgb_cropped
-        self.intermediate_results["depth_cropped"] = depth_cropped
-        self.intermediate_results["seg_cropped"] = seg_cropped
-        self.intermediate_results["rgb_masked"] = rgb_masked
-        self.intermediate_results["rgb_norm"] = rgb_norm
-        self.intermediate_results["depth_norm"] = depth_norm
+        self.intermediate_results.append({})
+        self.intermediate_results[-1]["initial_sample"] = sample
+        self.intermediate_results[-1]["rgb_cropped"] = rgb_cropped
+        self.intermediate_results[-1]["depth_cropped"] = depth_cropped
+        self.intermediate_results[-1]["seg_cropped"] = seg_cropped
+        self.intermediate_results[-1]["rgb_masked"] = rgb_masked
+        self.intermediate_results[-1]["rgb_norm"] = rgb_norm
+        self.intermediate_results[-1]["depth_norm"] = depth_norm
 
         return input_tensor

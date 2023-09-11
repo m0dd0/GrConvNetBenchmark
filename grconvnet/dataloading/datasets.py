@@ -10,14 +10,7 @@ from torch.utils.data import Dataset
 import torchvision.transforms.functional as F
 from scipy.spatial.transform import Rotation
 
-from ..datatypes import CameraData
-
-# Datasets __getitem__ should alway return CameraData object which contains rgb, depth and points
-# additional fields can be added to the CameraData (or subclass) object
-# this allows us to use the same dataloader for all datasets
-# therfore all necessary conversions should be done in the __getitem__ method in order
-# to make the return value of the __getitem__ method compatible with the preprocessing pipeline
-# and the dataloader
+from ..datatypes import CornellData, YCBData
 
 
 class CornellDataset(Dataset):
@@ -53,7 +46,7 @@ class CornellDataset(Dataset):
             ):
                 length += int(len(list(subdir.glob("*"))) / 5)
 
-        return length
+        return length - 1
 
     def get_item_base_path(self, index: int) -> str:
         if index >= 850:
@@ -109,7 +102,7 @@ class CornellDataset(Dataset):
         return segmentation
 
     def __getitem__(self, index):
-        sample = CameraData(
+        sample = CornellData(
             rgb=self.get_rgb(index),
             depth=self.get_depth(index),
             points=self.get_point_cloud(index),
@@ -134,7 +127,7 @@ class YCBSimulationData(Dataset):
 
     def __getitem__(self, index: int):
         all_sample_names = [
-            p.parts[-1] for p in self.root_dir.iterdir() if not p.is_dir()
+            p.parts[-1] for p in self.root_dir.iterdir() if p.suffix == ".npz"
         ]
 
         all_sample_names = sorted(all_sample_names)
@@ -143,7 +136,7 @@ class YCBSimulationData(Dataset):
 
         simulation_data = np.load(sample_path)
 
-        sample = CameraData(
+        sample = YCBData(
             rgb=torch.from_numpy(simulation_data["rgb_img"]).permute((2, 0, 1)),
             depth=torch.unsqueeze(torch.from_numpy(simulation_data["depth_img"]), 0),
             points=torch.from_numpy(simulation_data["point_cloud"]),
@@ -153,7 +146,7 @@ class YCBSimulationData(Dataset):
             cam_intrinsics=simulation_data["cam_intrinsics"],
             cam_pos=simulation_data["cam_pos"],
             cam_rot=Rotation.from_quat(
-                simulation_data["cam_quat"][[3, 0, 1, 2]]
+                simulation_data["cam_quat"][[1, 2, 3, 0]]
             ).as_matrix(),
             name=sample_name.split(".")[0],
         )
