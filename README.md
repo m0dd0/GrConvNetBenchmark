@@ -1,7 +1,13 @@
 # GRConvNet
-Refactored version of the Repository used in the GrConvNet Paper.   
+Refactored version of the Repository used in the GrConvNet Paper. 
+The original repository can be found [here](https://github.com/skumra/robotic-grasping).  
+
+## Usage
+Multiple demonstrations of the usage of the refactored code can be found in the `notebooks` folder.
 
 ## Processing chain
+The refactored version is using a pipeline based approach.
+The components of the pipeline are:
 **Dataset**  
 &darr; \<raw data\>  
 **DatasetClass**  
