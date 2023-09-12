@@ -3,7 +3,7 @@ Refactored version of the Repository used in the GrConvNet Paper.
 The original repository can be found [here](https://github.com/skumra/robotic-grasping).  
 
 ## Usage
-Multiple demonstrations of the usage of the refactored code can be found in the `notebooks` folder.
+Multiple demonstrations of the usage of the refactored code can be found in the `notebooks/usage` folder.
 
 ## Processing chain
 The refactored version is using a pipeline based approach.
